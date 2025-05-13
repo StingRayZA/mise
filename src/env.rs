@@ -110,7 +110,6 @@ pub static MISE_DEFAULT_CONFIG_FILENAME: Lazy<String> = Lazy::new(|| {
     var("MISE_DEFAULT_CONFIG_FILENAME")
         .ok()
         .or(MISE_OVERRIDE_CONFIG_FILENAMES.first().cloned())
-        .or(MISE_ENV.last().map(|env| format!("mise.{env}.toml")))
         .unwrap_or_else(|| "mise.toml".into())
 });
 pub static MISE_OVERRIDE_TOOL_VERSIONS_FILENAMES: Lazy<Option<IndexSet<String>>> =
@@ -154,6 +153,7 @@ pub static ARGV0: Lazy<String> = Lazy::new(|| ARGS.read().unwrap()[0].to_string(
 pub static MISE_BIN_NAME: Lazy<&str> = Lazy::new(|| filename(&ARGV0));
 pub static MISE_LOG_FILE: Lazy<Option<PathBuf>> = Lazy::new(|| var_path("MISE_LOG_FILE"));
 pub static MISE_LOG_FILE_LEVEL: Lazy<Option<LevelFilter>> = Lazy::new(log_file_level);
+pub static MISE_LOG_HTTP: Lazy<bool> = Lazy::new(|| var_is_true("MISE_LOG_HTTP"));
 
 pub static __USAGE: Lazy<Option<String>> = Lazy::new(|| var("__USAGE").ok());
 
@@ -224,6 +224,43 @@ pub static GITHUB_TOKEN: Lazy<Option<String>> = Lazy::new(|| {
 
     token
 });
+pub static MISE_GITHUB_ENTERPRISE_TOKEN: Lazy<Option<String>> =
+    Lazy::new(|| match var("MISE_GITHUB_ENTERPRISE_TOKEN") {
+        Ok(v) if v.trim() != "" => {
+            set_var("MISE_GITHUB_ENTERPRISE_TOKEN", &v);
+            Some(v)
+        }
+        _ => {
+            remove_var("MISE_GITHUB_ENTERPRISE_TOKEN");
+            None
+        }
+    });
+pub static GITLAB_TOKEN: Lazy<Option<String>> =
+    Lazy::new(
+        || match var("MISE_GITLAB_TOKEN").or_else(|_| var("GITLAB_TOKEN")) {
+            Ok(v) if v.trim() != "" => {
+                set_var("MISE_GITLAB_TOKEN", &v);
+                set_var("GITLAB_TOKEN", &v);
+                Some(v)
+            }
+            _ => {
+                remove_var("MISE_GITLAB_TOKEN");
+                remove_var("GITLAB_TOKEN");
+                None
+            }
+        },
+    );
+pub static MISE_GITLAB_ENTERPRISE_TOKEN: Lazy<Option<String>> =
+    Lazy::new(|| match var("MISE_GITLAB_ENTERPRISE_TOKEN") {
+        Ok(v) if v.trim() != "" => {
+            set_var("MISE_GITLAB_ENTERPRISE_TOKEN", &v);
+            Some(v)
+        }
+        _ => {
+            remove_var("MISE_GITLAB_ENTERPRISE_TOKEN");
+            None
+        }
+    });
 
 pub static TEST_TRANCHE: Lazy<usize> = Lazy::new(|| var_u8("TEST_TRANCHE") as usize);
 pub static TEST_TRANCHE_COUNT: Lazy<usize> = Lazy::new(|| var_u8("TEST_TRANCHE_COUNT") as usize);

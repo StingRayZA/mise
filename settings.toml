@@ -174,6 +174,19 @@ mise use -g cargo-binstall
 ```
 """
 
+[cargo.registry_name]
+env = "MISE_CARGO_REGISTRY_NAME"
+type = "String"
+optional = true
+description = "Name of the cargo registry to use."
+docs = """
+Packages are installed from the official cargo registry.
+
+You can set this to a different registry name if you have a custom feed or want to use a different source.
+
+Please follow the [cargo alternative registries documentation](https://doc.rust-lang.org/cargo/reference/registries.html#using-an-alternate-registry) to configure your registry.
+"""
+
 [cargo_binstall]
 type = "Bool"
 hide = true
@@ -445,6 +458,7 @@ env = "MISE_IDIOMATIC_VERSION_FILE"
 type = "Bool"
 default = true
 description = "Set to false to disable the idiomatic version files such as .node-version, .ruby-version, etc."
+deprecated = "This has been replaced with the idiomatic_version_file_enable_tools setting."
 docs = """
 Plugins can read the versions files used by other version managers (if enabled by the plugin)
 for example, `.nvmrc` in the case of node's nvm. See [idiomatic version files](/configuration.html#idiomatic-version-files)
@@ -460,7 +474,15 @@ type = "ListString"
 rust_type = "BTreeSet<String>"
 default = []
 parse_env = "list_by_comma"
+deprecated = "This has been replaced with the idiomatic_version_file_enable_tools setting."
 description = "Specific tools to disable idiomatic version files for."
+
+[idiomatic_version_file_enable_tools]
+env = "MISE_IDIOMATIC_VERSION_FILE_ENABLE_TOOLS"
+type = "ListString"
+rust_type = "Option<BTreeSet<String>>"
+parse_env = "list_by_comma"
+description = "Specific tools to enable idiomatic version files for like .node-version, .ruby-version, etc."
 
 [ignored_config_paths]
 env = "MISE_IGNORED_CONFIG_PATHS"
@@ -636,6 +658,22 @@ description = "Default to pinning versions when running `mise use` in mise.toml 
 docs = """
 This sets `--pin` by default when running `mise use` in mise.toml files. This can be overridden by
 passing `--fuzzy` on the command line.
+"""
+
+[pipx.registry_url]
+env = "MISE_PIPX_REGISTRY_URL"
+type = "String"
+default = "https://pypi.org/pypi/{}/json"
+description = "URL to use for pipx registry."
+docs = """
+URL to use for pipx registry.
+
+This is used to fetch the latest version of a package from the pypi registry.
+
+The default is `https://pypi.org/pypi/{}/json` which is the JSON endpoint for the pypi
+registry.
+
+You can also use the HTML endpoint by setting this to `https://pypi.org/simple/{}/`.
 """
 
 [pipx.uvx]
@@ -986,6 +1024,12 @@ env = "MISE_STATUS_MESSAGE_SHOW_TOOLS"
 type = "Bool"
 description = "Show configured tools when entering a directory with a mise.toml file."
 
+[status.truncate]
+env = "MISE_STATUS_MESSAGE_TRUNCATE"
+type = "Bool"
+default = true
+description = "Truncate status messages."
+
 [swift.gpg_verify]
 env = "MISE_SWIFT_GPG_VERIFY"
 type = "Bool"
@@ -1122,7 +1166,7 @@ a quick way for mise to query for new versions. This host regularly grabs all th
 latest versions of core and community plugins. It's faster than running a plugin's
 `list-all` command and gets around GitHub rate limiting problems when using it.
 
-See [FAQ](/faq.html#new-version-of-a-tool-is-not-available) for more information.
+See [Troubleshooting](/troubleshooting.html#new-version-of-a-tool-is-not-available) for more information.
 """
 
 [verbose]

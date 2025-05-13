@@ -2,7 +2,8 @@ use crate::cache::{CacheManager, CacheManagerBuilder};
 use crate::{dirs, duration, env};
 use eyre::Result;
 use heck::ToKebabCase;
-use reqwest::header::HeaderMap;
+use reqwest::IntoUrl;
+use reqwest::header::{HeaderMap, HeaderValue};
 use serde_derive::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -41,6 +42,8 @@ static RELEASES_CACHE: Lazy<RwLock<CacheGroup<Vec<GithubRelease>>>> = Lazy::new(
 static RELEASE_CACHE: Lazy<RwLock<CacheGroup<GithubRelease>>> = Lazy::new(Default::default);
 
 static TAGS_CACHE: Lazy<RwLock<CacheGroup<Vec<String>>>> = Lazy::new(Default::default);
+
+pub static API_URL: &str = "https://api.github.com";
 
 fn get_tags_cache(key: &str) -> RwLockReadGuard<'_, CacheGroup<Vec<String>>> {
     TAGS_CACHE
@@ -85,17 +88,30 @@ pub fn list_releases(repo: &str) -> Result<Vec<GithubRelease>> {
     let key = repo.to_kebab_case();
     let cache = get_releases_cache(&key);
     let cache = cache.get(&key).unwrap();
-    Ok(cache.get_or_try_init(|| list_releases_(repo))?.to_vec())
+    Ok(cache
+        .get_or_try_init(|| list_releases_(API_URL, repo))?
+        .to_vec())
 }
 
-fn list_releases_(repo: &str) -> Result<Vec<GithubRelease>> {
-    let url = format!("https://api.github.com/repos/{repo}/releases");
-    let (mut releases, mut headers) =
-        crate::http::HTTP_FETCH.json_headers::<Vec<GithubRelease>, _>(url)?;
+pub fn list_releases_from_url(api_url: &str, repo: &str) -> Result<Vec<GithubRelease>> {
+    let key = format!("{api_url}-{repo}").to_kebab_case();
+    let cache = get_releases_cache(&key);
+    let cache = cache.get(&key).unwrap();
+    Ok(cache
+        .get_or_try_init(|| list_releases_(api_url, repo))?
+        .to_vec())
+}
+
+fn list_releases_(api_url: &str, repo: &str) -> Result<Vec<GithubRelease>> {
+    let url = format!("{api_url}/repos/{repo}/releases");
+    let headers = get_headers(&url);
+    let (mut releases, mut headers) = crate::http::HTTP_FETCH
+        .json_headers_with_headers::<Vec<GithubRelease>, _>(url, &headers)?;
 
     if *env::MISE_LIST_ALL_VERSIONS {
         while let Some(next) = next_page(&headers) {
-            let (more, h) = crate::http::HTTP_FETCH.json_headers::<Vec<GithubRelease>, _>(next)?;
+            let (more, h) = crate::http::HTTP_FETCH
+                .json_headers_with_headers::<Vec<GithubRelease>, _>(next, &headers)?;
             releases.extend(more);
             headers = h;
         }
@@ -109,16 +125,30 @@ pub fn list_tags(repo: &str) -> Result<Vec<String>> {
     let key = repo.to_kebab_case();
     let cache = get_tags_cache(&key);
     let cache = cache.get(&key).unwrap();
-    Ok(cache.get_or_try_init(|| list_tags_(repo))?.to_vec())
+    Ok(cache
+        .get_or_try_init(|| list_tags_(API_URL, repo))?
+        .to_vec())
 }
 
-fn list_tags_(repo: &str) -> Result<Vec<String>> {
-    let url = format!("https://api.github.com/repos/{}/tags", repo);
-    let (mut tags, mut headers) = crate::http::HTTP_FETCH.json_headers::<Vec<GithubTag>, _>(url)?;
+pub fn list_tags_from_url(api_url: &str, repo: &str) -> Result<Vec<String>> {
+    let key = format!("{api_url}-{repo}").to_kebab_case();
+    let cache = get_tags_cache(&key);
+    let cache = cache.get(&key).unwrap();
+    Ok(cache
+        .get_or_try_init(|| list_tags_(api_url, repo))?
+        .to_vec())
+}
+
+fn list_tags_(api_url: &str, repo: &str) -> Result<Vec<String>> {
+    let url = format!("{api_url}/repos/{repo}/tags");
+    let headers = get_headers(&url);
+    let (mut tags, mut headers) =
+        crate::http::HTTP_FETCH.json_headers_with_headers::<Vec<GithubTag>, _>(url, &headers)?;
 
     if *env::MISE_LIST_ALL_VERSIONS {
         while let Some(next) = next_page(&headers) {
-            let (more, h) = crate::http::HTTP_FETCH.json_headers::<Vec<GithubTag>, _>(next)?;
+            let (more, h) = crate::http::HTTP_FETCH
+                .json_headers_with_headers::<Vec<GithubTag>, _>(next, &headers)?;
             tags.extend(more);
             headers = h;
         }
@@ -131,12 +161,24 @@ pub fn get_release(repo: &str, tag: &str) -> Result<GithubRelease> {
     let key = format!("{repo}-{tag}").to_kebab_case();
     let cache = get_release_cache(&key);
     let cache = cache.get(&key).unwrap();
-    Ok(cache.get_or_try_init(|| get_release_(repo, tag))?.clone())
+    Ok(cache
+        .get_or_try_init(|| get_release_(API_URL, repo, tag))?
+        .clone())
 }
 
-fn get_release_(repo: &str, tag: &str) -> Result<GithubRelease> {
-    let url = format!("https://api.github.com/repos/{repo}/releases/tags/{tag}");
-    crate::http::HTTP_FETCH.json(url)
+pub fn get_release_for_url(api_url: &str, repo: &str, tag: &str) -> Result<GithubRelease> {
+    let key = format!("{api_url}-{repo}-{tag}").to_kebab_case();
+    let cache = get_release_cache(&key);
+    let cache = cache.get(&key).unwrap();
+    Ok(cache
+        .get_or_try_init(|| get_release_(api_url, repo, tag))?
+        .clone())
+}
+
+fn get_release_(api_url: &str, repo: &str, tag: &str) -> Result<GithubRelease> {
+    let url = format!("{api_url}/repos/{repo}/releases/tags/{tag}");
+    let headers = get_headers(&url);
+    crate::http::HTTP_FETCH.json_with_headers(url, &headers)
 }
 
 fn next_page(headers: &HeaderMap) -> Option<String> {
@@ -151,4 +193,29 @@ fn next_page(headers: &HeaderMap) -> Option<String> {
 
 fn cache_dir() -> PathBuf {
     dirs::CACHE.join("github")
+}
+
+fn get_headers<U: IntoUrl>(url: U) -> HeaderMap {
+    let mut headers = HeaderMap::new();
+    let url = url.into_url().unwrap();
+    let mut set_headers = |token: &str| {
+        headers.insert(
+            "authorization",
+            HeaderValue::from_str(format!("token {token}").as_str()).unwrap(),
+        );
+        headers.insert(
+            "x-github-api-version",
+            HeaderValue::from_static("2022-11-28"),
+        );
+    };
+
+    if url.host_str() == Some("api.github.com") {
+        if let Some(token) = env::GITHUB_TOKEN.as_ref() {
+            set_headers(token);
+        }
+    } else if let Some(token) = env::MISE_GITHUB_ENTERPRISE_TOKEN.as_ref() {
+        set_headers(token);
+    }
+
+    headers
 }

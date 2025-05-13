@@ -156,6 +156,18 @@ impl Watch {
                 args.push(path.to_string_lossy().to_string());
             }
         }
+        if !self.watchexec.filter_extensions.is_empty() {
+            for ext in &self.watchexec.filter_extensions {
+                args.push("--exts".to_string());
+                args.push(ext.to_string());
+            }
+        }
+        if !self.watchexec.filter_patterns.is_empty() {
+            for pattern in &self.watchexec.filter_patterns {
+                args.push("--filter".to_string());
+                args.push(pattern.to_string());
+            }
+        }
         if let Some(watch_file) = &self.watchexec.watch_file {
             args.push("--watch-file".to_string());
             args.push(watch_file.to_string_lossy().to_string());
@@ -172,7 +184,11 @@ impl Watch {
             args.push("-f".to_string());
             args.extend(itertools::intersperse(globs, "-f".to_string()).collect::<Vec<_>>());
         }
-        args.extend(["--".to_string(), "mise".to_string(), "run".to_string()]);
+        args.extend([
+            "--".to_string(),
+            env::MISE_BIN.to_string_lossy().to_string(),
+            "run".to_string(),
+        ]);
         let task_args = itertools::intersperse(
             tasks.iter().map(|t| {
                 let mut args = vec![t.name.to_string()];

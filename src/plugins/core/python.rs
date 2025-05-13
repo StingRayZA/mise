@@ -10,6 +10,7 @@ use crate::http::{HTTP, HTTP_FETCH};
 use crate::install_context::InstallContext;
 use crate::toolset::{ToolRequest, ToolVersion, Toolset};
 use crate::ui::progress_report::SingleReport;
+use crate::{Result, lock_file::LockFile};
 use crate::{cmd, dirs, file, plugins, sysconfig};
 use eyre::{bail, eyre};
 use flate2::read::GzDecoder;
@@ -17,8 +18,8 @@ use itertools::Itertools;
 use std::collections::BTreeMap;
 use std::io::Read;
 use std::path::{Path, PathBuf};
-use std::sync::LazyLock as Lazy;
 use std::sync::{Arc, OnceLock};
+use std::sync::{LazyLock as Lazy, Mutex};
 use versions::Versioning;
 use xx::regex;
 
@@ -48,8 +49,16 @@ impl PythonPlugin {
         self.python_build_path()
             .join("plugins/python-build/bin/python-build")
     }
+    fn lock_pyenv(&self) -> Result<fslock::LockFile> {
+        LockFile::new(&self.python_build_path())
+            .with_callback(|l| {
+                trace!("install_or_update_pyenv {}", l.display());
+            })
+            .lock()
+    }
     fn install_or_update_python_build(&self, ctx: Option<&InstallContext>) -> eyre::Result<()> {
         ensure_not_windows()?;
+        let _lock = self.lock_pyenv();
         if self.python_build_bin().exists() {
             self.update_python_build()
         } else {
@@ -465,15 +474,19 @@ impl Backend for PythonPlugin {
         Ok(hm)
     }
 
-    fn get_remote_version_cache(&self) -> Arc<VersionCacheManager> {
-        static CACHE: OnceLock<Arc<VersionCacheManager>> = OnceLock::new();
+    fn get_remote_version_cache(&self) -> Arc<Mutex<VersionCacheManager>> {
+        static CACHE: OnceLock<Arc<Mutex<VersionCacheManager>>> = OnceLock::new();
         CACHE
             .get_or_init(|| {
-                CacheManagerBuilder::new(self.ba().cache_path.join("remote_versions.msgpack.z"))
+                Mutex::new(
+                    CacheManagerBuilder::new(
+                        self.ba().cache_path.join("remote_versions.msgpack.z"),
+                    )
                     .with_fresh_duration(SETTINGS.fetch_remote_versions_cache())
                     .with_cache_key((SETTINGS.python.compile == Some(false)).to_string())
-                    .build()
-                    .into()
+                    .build(),
+                )
+                .into()
             })
             .clone()
     }

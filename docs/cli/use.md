@@ -1,6 +1,6 @@
 # `mise use`
 
-- **Usage**: `mise use [FLAGS] [TOOL@VERSION]...`
+- **Usage**: `mise use [FLAGS] [TOOL@VERSION]…`
 - **Aliases**: `u`
 - **Source code**: [`src/cli/use.rs`](https://github.com/jdx/mise/blob/main/src/cli/use.rs)
 
@@ -11,16 +11,18 @@ By default, this will use a `mise.toml` file in the current directory.
 
 In the following order:
 
+- If `--global` is set, it will use the global config file.
+- If `--path` is set, it will use the config file at the given path.
+- If `--env` is set, it will use `mise.<env>.toml`.
 - If `MISE_DEFAULT_CONFIG_FILENAME` is set, it will use that instead.
 - If `MISE_OVERRIDE_CONFIG_FILENAMES` is set, it will the first from that list.
-- If `MISE_ENV` is set, it will use a `mise.<env>.toml` instead.
-- Otherwise just "mise.toml"
+- Otherwise just "mise.toml" or global config if cwd is home directory.
 
 Use the `--global` flag to use the global config file instead.
 
 ## Arguments
 
-### `[TOOL@VERSION]...`
+### `[TOOL@VERSION]…`
 
 Tool(s) to add to config file
 
@@ -63,7 +65,7 @@ Number of jobs to run in parallel
 
 Directly pipe stdin/stdout/stderr from plugin to user Sets `--jobs=1`
 
-### `--remove... <PLUGIN>`
+### `--remove… <PLUGIN>`
 
 Remove the plugin(s) from config file
 
